@@ -1,0 +1,20 @@
+version: '3.8'
+services:
+  mypayment-mocking-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - .:/app
+    labels:
+        - "traefik.enable=true"
+        - "traefik.docker.network=docker-net"
+        - "traefik.http.routers.mypayment-mocking-api.tls=true"
+        - "traefik.http.routers.mypayment-mocking-api.rule=Host(`mypayment-mocking-api.tdkhoa.dev`)"
+        - "traefik.http.routers.mypayment-mocking-api.entrypoints=websecure"
+        - "traefik.http.services.mypayment-mocking-api.loadbalancer.server.port=80"
+    networks:
+    - docker-net
+networks:
+    docker-net:
+        external: true
