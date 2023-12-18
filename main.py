@@ -8,6 +8,7 @@ import asyncio
 import hashlib
 import xmltodict
 import xml.etree.ElementTree as ET
+from datetime import datetime, timedelta
 
 app = FastAPI()
 logger = logging.getLogger("uvicorn.error")
@@ -59,12 +60,95 @@ async def payment_info(request: Request, cur=Depends(get_pool)):
             hd_info = ET.SubElement(response_xml, "HD_INFO")
             res_tcode = ET.SubElement(hd_info, "RES_TCODE")
             res_tcode.text = "2:00000"
-            response_str = ET.tostring(response_xml, encoding="utf-8", method="xml")
+            response_str = ET.tostring(response_xml, encoding="utf-8", method="xml", xml_declaration=True)
             return Response(
                 content=response_str, media_type="application/xml", status_code=400
             )
 
+        validation_status = True
+
         res_sdiv = data["REQUEST"]["DATA_INFO"]["RES_SDIV"]
+        if res_sdiv != "C":
+            validation_status = False
+
+        inquiry_no = data["REQUEST"]["DATA_INFO"]["INQUIRY_NO"]
+        if inquiry_no != None:
+            validation_status = False
+
+        # <TORIHIKI_DETAIL>TORIHIKI_DETAILありがとうございます。</TORIHIKI_DETAIL>
+        torihiki_detail = data["REQUEST"]["DATA_INFO"]["TORIHIKI_DETAIL"]
+        if len(torihiki_detail) > 30:
+            validation_status = False
+
+        # <TORIHIKI_AMOUNT>20000</TORIHIKI_AMOUNT>
+        torihiki_amount = int(data["REQUEST"]["DATA_INFO"]["TORIHIKI_AMOUNT"])
+        if not 1 <= torihiki_amount <= 300000:
+            validation_status = False
+
+        # <PAYMENT_DATE>20180331</PAYMENT_DATE>
+        try:
+            payment_date = data["REQUEST"]["DATA_INFO"]["PAYMENT_DATE"]
+            payment_date = datetime.strptime(payment_date, "%Y%m%d")
+        except ValueError:
+            validation_status = False
+        today = datetime.today()
+        limit = today + timedelta(days=59)
+        if payment_date.date() != limit.date():
+            validation_status = False
+
+        # # <BARCODE_INF>91912345012345678901234567890117123100200001</BARCODE_INF>
+        # barcode_inf = data["REQUEST"]["DATA_INFO"]["BARCODE_INF"]
+
+        # # <FREE_COL>FREE_COLありがとうございます。</FREE_COL>
+        # free_col = data["REQUEST"]["DATA_INFO"]["FREE_COL"]
+
+        # <LINK_URL>https://xxx.xxx.co.jp/</LINK_URL>
+        link_url = data["REQUEST"]["DATA_INFO"]["LINK_URL"]
+        # link_url must start with http:// or https://
+        if not link_url.startswith("http://") and not link_url.startswith("https://"):
+            validation_status = False
+
+        # <SMS_TYPE>3</SMS_TYPE>
+        sms_type = data["REQUEST"]["DATA_INFO"]["SMS_TYPE"]
+        if sms_type != "3":
+            validation_status = False
+
+        # <SMS_RETYPE/>
+        sms_retype = data["REQUEST"]["DATA_INFO"]["SMS_RETYPE"]
+
+        # <SMS_PHONE_NUM>090000000002</SMS_PHONE_NUM>
+        sms_phone_num = data["REQUEST"]["DATA_INFO"]["SMS_PHONE_NUM"]
+        # check sms_phone_num must start with 070, 080, 090
+        if not sms_phone_num.startswith("070") and not sms_phone_num.startswith("080") and not sms_phone_num.startswith("090"):
+            validation_status = False
+
+        # <GET_USER_NUM>20170401</GET_USER_NUM>
+        get_user_num = data["REQUEST"]["DATA_INFO"]["GET_USER_NUM"]
+
+        # <SMS_TYPE>3</SMS_TYPE>
+        sms_type = data["REQUEST"]["DATA_INFO"]["SMS_TYPE"]
+
+        # <SMS_RETYPE/>
+        sms_retype = data["REQUEST"]["DATA_INFO"]["SMS_RETYPE"]
+
+        # <SMS_PHONE_NUM>090000000002</SMS_PHONE_NUM>
+        sms_phone_num = data["REQUEST"]["DATA_INFO"]["SMS_PHONE_NUM"]
+
+        # <GET_USER_NUM>20170401</GET_USER_NUM>
+        get_user_num = data["REQUEST"]["DATA_INFO"]["GET_USER_NUM"]
+
+        # <SMS_MSG>SMS_MSGありがとうございます。</SMS_MSG>
+        sms_msg = data["REQUEST"]["DATA_INFO"]["SMS_MSG"]
+
+        if validation_status is False:
+            response_xml = ET.Element("REQUEST")
+            hd_info = ET.SubElement(response_xml, "HD_INFO")
+            res_tcode = ET.SubElement(hd_info, "RES_TCODE")
+            res_tcode.text = "2:00000"
+            response_str = ET.tostring(response_xml, encoding="utf-8", method="xml", xml_declaration=True)
+            return Response(
+                content=response_str, media_type="application/xml", status_code=400
+            )
 
         response_xml = ET.Element("REQUEST")
         corp_id_element = ET.SubElement(response_xml, "CORPID")
@@ -73,7 +157,7 @@ async def payment_info(request: Request, cur=Depends(get_pool)):
         password_element.text = password
         res_sdiv_element = ET.SubElement(response_xml, "RES_SDIV")
         res_sdiv_element.text = res_sdiv
-        response_str = ET.tostring(response_xml, encoding="utf-8", method="xml")
+        response_str = ET.tostring(response_xml, encoding="utf-8", method="xml", xml_declaration=True)
 
         return Response(content=response_str, media_type="application/xml")
     else:
