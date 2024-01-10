@@ -16,12 +16,14 @@ router = APIRouter()
 
 logger = logging.getLogger("uvicorn.error")
 
+
 def get_db():
     db = SessionLocal()
     try:
         yield db
     finally:
         db.close()
+
 
 @router.post("/api/v1/billing/register")
 async def do_billing_register(request: Request, db: Session = Depends(get_db)):
@@ -71,7 +73,11 @@ async def do_billing_register(request: Request, db: Session = Depends(get_db)):
         db.commit()
 
         # get the user from the database if it exists
-        user = db.query(models.User).filter(models.User.corp_id == corp_id, models.User.password == password).first()
+        user = (
+            db.query(models.User)
+            .filter(models.User.corp_id == corp_id, models.User.password == password)
+            .first()
+        )
         if user is None:
             res_tcode = "2:00000"
             response_xml = ET.Element("REQUEST")
@@ -138,7 +144,7 @@ async def do_billing_register(request: Request, db: Session = Depends(get_db)):
                 payment_date = datetime.strptime(payment_date, "%Y%m%d")
                 today = datetime.today()
                 limit = today + timedelta(days=59)
-                if payment_date.date() != limit.date():
+                if payment_date.date() > limit.date():
                     res_scodes.append("3:4005")
                     logger.info("payment_date is not 59 days from today")
             except ValueError:
@@ -149,9 +155,10 @@ async def do_billing_register(request: Request, db: Session = Depends(get_db)):
             res_scodes.append("3:3007")
             logger.info("free_col is not None and len(free_col) > 100")
 
-        if link_url != None and (
-            link_url.startswith("https://") == False
-            or link_url.startswith("http://") == False
+        if (
+            link_url != None
+            and link_url.startswith("https://") == False
+            and link_url.startswith("http://") == False
         ):
             res_scodes.append("3:4008")
             logger.info(
@@ -219,6 +226,9 @@ async def do_billing_register(request: Request, db: Session = Depends(get_db)):
             return Response(
                 content=response_str, media_type="application/xml", status_code=200
             )
+        else:
+            res_scodes.append("0:00000")
+            ET.SubElement(data_info, "RES_SCODE").text = res_scodes[0]
 
         # Generate a random path
         path = "".join(random.choices(string.ascii_letters + string.digits, k=10))
@@ -229,7 +239,7 @@ async def do_billing_register(request: Request, db: Session = Depends(get_db)):
         result_data = BillingInfo(
             type="RESULT",
             res_tcode=res_tcode.text,
-            res_scode= ",".join(res_scodes),
+            res_scode=",".join(res_scodes),
             res_sdiv=res_sdiv,
             inquiry_no=random_number_str,
             torihiki_detail=torihiki_detail,
