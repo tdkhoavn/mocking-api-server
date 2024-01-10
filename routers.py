@@ -227,7 +227,7 @@ async def do_billing_register(request: Request, db: Session = Depends(get_db)):
                 content=response_str, media_type="application/xml", status_code=200
             )
         else:
-            res_scodes.append("0:00000")
+            res_scodes.append("0:0000")
             ET.SubElement(data_info, "RES_SCODE").text = res_scodes[0]
 
         # Generate a random path
