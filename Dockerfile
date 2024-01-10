@@ -1,6 +1,11 @@
 # Use an official Python runtime as a parent image
 FROM python:3.9-slim-buster
 
+RUN apt-get update -y
+RUN apt-get install pkg-config -y
+RUN apt-get install -y python3-dev build-essential
+RUN apt-get install -y default-libmysqlclient-dev
+
 # Set the working directory in the container to /app
 WORKDIR /app
 
