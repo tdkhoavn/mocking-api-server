@@ -11,6 +11,8 @@ import string
 import logging
 from models import BillingInfo
 from datetime import datetime, timedelta
+import httpx
+import json
 
 router = APIRouter()
 
@@ -229,11 +231,10 @@ async def do_billing_register(request: Request, db: Session = Depends(get_db)):
         else:
             res_scodes.append("0:0000")
             ET.SubElement(data_info, "RES_SCODE").text = res_scodes[0]
-
-        # Generate a random path
+        # Generate a unique random path
         path = "".join(random.choices(string.ascii_letters + string.digits, k=10))
         # Combine the domain with the random path
-        random_url = f"https://mypayment-mocking-api.tdkhoa.dev/s/{path}"
+        random_url = f"https://mypayment-paymentgateway.tdkhoa.dev/p/{path}"
         ET.SubElement(data_info, "BARCODE_URL").text = random_url
 
         result_data = BillingInfo(
@@ -269,6 +270,52 @@ async def do_billing_register(request: Request, db: Session = Depends(get_db)):
             status_code=400, detail=f"Content type {content_type} not supported"
         )
 
+
+@router.get("/api/v1/billing/info/{key}")
+async def get_billing_info(key: str, db: Session = Depends(get_db)):
+    billing_info = db.query(BillingInfo).filter(BillingInfo.barcode_url.endswith(key)).first()
+
+    if not billing_info:
+        raise HTTPException(status_code=404, detail="Billing info not found")
+    return billing_info
+
+
+@router.post("/api/v1/purchase")
+async def do_purchase(request: Request, db: Session = Depends(get_db)):
+    body = await request.body()
+    data = json.loads(body.decode('utf-8'))
+
+    request_xml = ET.Element("RESULT")
+    data_info = ET.SubElement(request_xml, "DATA_INFO")
+    ET.SubElement(data_info, "PAYSTS").text = "10"
+    ET.SubElement(data_info, "INQNO").text = str(data["inquiry_no"])
+    ET.SubElement(data_info, "BARCODE").text = ""
+    ET.SubElement(data_info, "FREECMNT").text = ""
+    ET.SubElement(data_info, "PAIDMNY").text = "333333333"
+    ET.SubElement(data_info, "RCPDATE").text = data["rcpdate"]
+    ET.SubElement(data_info, "CVSCODE").text = data["cvscode"]
+    ET.SubElement(data_info, "CVSNAME").text = data["cvsname"]
+    ET.SubElement(data_info, "STOCODE").text = data["stocode"]
+    ET.SubElement(data_info, "KTDATE").text = ""
+    ET.SubElement(data_info, "SPSDATE").text = ""
+
+    request_xml_string = ET.tostring(request_xml)
+
+    headers = {
+        "Content-Type": "application/xml"
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.post('http://fonfunsms-admin/api/v1/breaking-news-notification', data=request_xml_string, headers=headers)
+    except httpx.ConnectError:
+        raise HTTPException(status_code=400, detail={"message": "Error communicating with fonfunSMS"})
+    if response.status_code != 200:
+        raise HTTPException(status_code=400, detail={"message": "Error communicating with fonfunSMS"})
+
+    response_xml = ET.fromstring(response.content)
+
+    return {"message": "Purchase successful"}
 
 def encrypt_password(password: str) -> str:
     # Use MD5 algorithm to encrypt the password

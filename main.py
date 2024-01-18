@@ -5,6 +5,7 @@ import models
 import routers
 from database import SessionLocal
 from urllib.parse import quote_plus
+from fastapi.middleware.cors import CORSMiddleware
 
 username = "root"
 password = quote_plus("Secret@12345")
@@ -18,6 +19,18 @@ engine = create_engine(SQLALCHEMY_DATABASE_URL)
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
+
+origins = [
+    "https://mypayment-paymentgateway.tdkhoa.dev",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 app.include_router(routers.router)
 
